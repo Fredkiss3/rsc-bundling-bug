@@ -1,38 +1,48 @@
-import AbTestClientA from "#/app/ab-test-client-a";
-import AbTestClientB from "#/app/ab-test-client-b";
-import { WrapperForHeavyComponent } from "#/app/wrapper-for-heavy-component";
-import { unstable_noStore } from "next/cache";
-import dynamic from "next/dynamic";
+import ClientComponentWithMoment from "#/app/client-component-with-moment";
+import { revalidatePath, unstable_noStore } from "next/cache";
+import { cookies } from "next/headers";
+import { ServerComponent } from "./server-component";
 
-const ClientComponent = dynamic(() => import("#/app/client-component"), {
-  ssr: false,
-});
+const getRenderCCCondition = () => cookies().get("RENDER_CC")?.value === "1";
 
-const getSomeCondition = () => false;
+async function toggleClientAction() {
+    "use server";
 
-const getUserTestSegment = () => (Math.random() > 0.5 ? "a" : "b");
+    const renderCC = cookies().get("RENDER_CC")?.value;
 
-const getShouldRenderHeavyComponent = () => Math.random() > 0.5;
+    if (renderCC === "1") {
+        cookies().set("RENDER_CC", "0");
+    } else {
+        cookies().set("RENDER_CC", "1");
+    }
+
+    revalidatePath("/");
+}
 
 export default function Home() {
-  unstable_noStore();
+    unstable_noStore();
 
-  const shouldRenderClientComponent = getSomeCondition();
-  const userSegment = getUserTestSegment();
-  const shouldRenderHeavyComponent = getShouldRenderHeavyComponent();
+    const shouldRenderHeavyClientComponent = getRenderCCCondition();
 
-  return (
-    <>
-      <h1>Hello world</h1>
-      {shouldRenderClientComponent && <ClientComponent></ClientComponent>}
-      {userSegment === "a" ? (
-        <AbTestClientA></AbTestClientA>
-      ) : (
-        <AbTestClientB></AbTestClientB>
-      )}
-      {shouldRenderHeavyComponent && (
-        <WrapperForHeavyComponent></WrapperForHeavyComponent>
-      )}
-    </>
-  );
+    return (
+        <main className="p-5 flex flex-col gap-4">
+            <h1 className="text-2xl font-bold">RSC Bundling demo</h1>
+
+            <form action={toggleClientAction}>
+                <button
+                    className={
+                        "bg-slate-900 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 focus:ring-offset-slate-50 text-white font-semibold h-12 px-6 rounded-lg w-full flex items-center justify-center sm:w-auto dark:bg-sky-500 dark:highlight-white/20 dark:hover:bg-sky-400"
+                    }
+                >
+                    {shouldRenderHeavyClientComponent
+                        ? "Don't render the CC with moment"
+                        : "Render the CC with moment"}
+                </button>
+            </form>
+
+            {shouldRenderHeavyClientComponent && <ClientComponentWithMoment />}
+
+            <ServerComponent />
+        </main>
+    );
 }
